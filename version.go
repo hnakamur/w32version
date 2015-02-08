@@ -2,7 +2,9 @@ package w32version
 
 import (
 	"errors"
-	"syscall"
+	"os"
+	"os/exec"
+	"strings"
 )
 
 type W32Version uint16
@@ -17,15 +19,37 @@ const (
 	Windows10    = 0x0406
 )
 
+const versionPrefix = "[Version "
+const versionSuffix = "]"
+
 func GetVersion() (W32Version, error) {
-	v, err := syscall.GetVersion()
+	cmd := os.Getenv("ComSpec")
+	out, err := exec.Command(cmd, "/c", "ver").Output()
 	if err != nil {
 		return 0, err
 	}
-	v = v & 0xffff
-	switch v {
-	case WindowsVista, Windows7, Windows8, Windows8_1, Windows10:
-		return W32Version(v), nil
+	outStr := string(out)
+	start := strings.Index(outStr, versionPrefix)
+	if start == -1 {
+		return 0, UnknownWindowsVersion
+	}
+	outStr = outStr[start+len(versionPrefix):]
+	end := strings.Index(outStr, versionSuffix)
+	if end == -1 {
+		return 0, UnknownWindowsVersion
+	}
+	s := strings.Split(outStr[:end], ".")
+	switch {
+	case s[0] == "6" && s[1] == "0":
+		return WindowsVista, nil
+	case s[0] == "6" && s[1] == "1":
+		return Windows7, nil
+	case s[0] == "6" && s[1] == "2":
+		return Windows8, nil
+	case s[0] == "6" && s[1] == "3":
+		return Windows8_1, nil
+	case s[0] == "6" && s[1] == "4":
+		return Windows10, nil
 	default:
 		return 0, UnknownWindowsVersion
 	}
